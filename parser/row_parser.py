@@ -3,8 +3,6 @@ parser/row_parser.py
 
 VBGRAMG Row Parser
 
-Parses one Measurement/Deduction row.
-
 Project:
 VBGRAMG_AUTO
 """
@@ -18,88 +16,107 @@ from models.measurement import MeasurementRow
 
 class RowParser:
     """
-    Parses Measurement/Deduction rows.
+    Parse a single Measurement / Deduction row.
+
+    Supports
+
+    ✔ Formula in Length
+    ✔ Negative Quantity
+    ✔ Dot (.) Description
+    ✔ Empty Breadth
+    ✔ Empty Depth
+    ✔ Empty Remark
     """
 
+    NUMBER = r"-?[0-9.]+"
+
     ROW_PATTERN = re.compile(
-        r"""
+        rf"""
         ^\s*
-        (\d+)                     # Sl No
+        (?P<sl>\d+)
         \s+
-        (.+?)                     # Description
+
+        (?P<desc>.+?)
+
         \s+
-        (\S+)                     # No
+
+        (?P<no>\S+)
+
         \s+
-        (\S+)                     # Length
-        (?:\s+(\S+))?             # Breadth
-        (?:\s+(\S+))?             # Depth
-        (?:\s+(\S+))?             # CF
-        (?:\s+(.*))?              # Remark
+
+        (?P<length>\S+)
+
+        (?:\s+(?P<breadth>\S+))?
+
+        (?:\s+(?P<depth>\S+))?
+
+        (?:\s+(?P<cf>{NUMBER}))?
+
+        (?:\s+(?P<qty>{NUMBER}))?
+
+        (?:\s+(?P<remark>.*))?
+
         $
         """,
         re.VERBOSE,
     )
 
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
 
-    def is_row(self, line: str) -> bool:
-        """
-        Returns True if line looks like a measurement row.
-        """
+    def parse(
+        self,
+        line: str,
+    ) -> MeasurementRow | None:
 
-        line = line.strip()
-
-        if not line:
-            return False
-
-        if not line[0].isdigit():
-            return False
-
-        return True
-
-    # ---------------------------------------------------------
-
-    def parse(self, line: str) -> MeasurementRow | None:
-        """
-        Parse one measurement row.
-        """
+        if line is None:
+            return None
 
         line = " ".join(line.split())
+
+        if line == "":
+            return None
 
         match = self.ROW_PATTERN.match(line)
 
         if match is None:
             return None
 
-        (
-            _,
-            description,
-            no,
-            length,
-            breadth,
-            depth,
-            cf,
-            remark,
-        ) = match.groups()
+        groups = match.groupdict()
+
+        description = groups["desc"].strip()
+
+        if description == ".":
+
+            description = "."
 
         return MeasurementRow(
 
-            item_description=description.strip(),
+            item_description=description,
 
-            no=no or "",
+            no=(groups["no"] or "").strip(),
 
-            length=length or "",
+            length=(groups["length"] or "").strip(),
 
-            breadth=breadth or "",
+            breadth=(groups["breadth"] or "").strip(),
 
-            depth=depth or "",
+            depth=(groups["depth"] or "").strip(),
 
-            cf=cf or "1",
+            cf=(groups["cf"] or "1").strip(),
 
-            remark=(remark or "").strip(),
+            remark=(groups["remark"] or "").strip(),
+
         )
 
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
+
+    def is_row(
+        self,
+        line: str,
+    ) -> bool:
+
+        return self.parse(line) is not None
+
+    # -----------------------------------------------------
 
     def parse_rows(
         self,
